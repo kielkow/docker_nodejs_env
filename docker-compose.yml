@@ -1,0 +1,62 @@
+version: '2.3'
+
+services:
+  app:
+    build: .
+    container_name: app
+    volumes:
+      - .:/home/node/api
+      - /home/node/api/node_modules
+    networks: 
+      - app-network
+    ports:
+      - '3000:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+
+  nginx:
+    build: .docker/nginx
+    container_name: nginx
+    restart: always
+    tty: true
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/home/node/api
+    networks: 
+      - app-network
+  
+  db:
+    build: .docker/mysql
+    image: mysql:5.7
+    command: --innodb-use-native-aio=0
+    container_name: db
+    restart: always
+    tty: true
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./.docker/dbdata:/var/lib/mysql
+    environment:
+      - MYSQL_DATABASE=db_name
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_USER=root
+    networks: 
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", 'mysql -uroot --database=db_name --password=root --execute="SELECT count(table_name) > 0 FROM information_schema.tables;" --skip-column-names -B']
+      interval: 10s
+      timeout: 10s
+      retries: 4
+  
+  redis:
+    image: redis:alpine
+    expose:
+      - 6379
+    networks: 
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
